@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, abort
 from barcode import Code128
 from barcode.writer import ImageWriter
 import io
@@ -38,7 +38,7 @@ def home():
       align-items: center;
       justify-content: center;
       background: #0f0f0f;
-      font-family: 'IBM Plex Sans', sans-serif;
+      font-family: "IBM Plex Sans", sans-serif;
     }
 
     .card {
@@ -52,7 +52,7 @@ def home():
     }
 
     .logo {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: "IBM Plex Mono", monospace;
       font-size: 11px;
       letter-spacing: 3px;
       text-transform: uppercase;
@@ -81,7 +81,7 @@ def home():
       text-transform: uppercase;
       color: #555;
       margin-bottom: 8px;
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: "IBM Plex Mono", monospace;
     }
 
     input {
@@ -91,7 +91,7 @@ def home():
       border: 1px solid #2e2e2e;
       border-radius: 8px;
       color: #f0f0f0;
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: "IBM Plex Mono", monospace;
       font-size: 15px;
       outline: none;
       transition: border-color 0.2s;
@@ -108,7 +108,7 @@ def home():
       color: #0f0f0f;
       border: none;
       border-radius: 8px;
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: "IBM Plex Mono", monospace;
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 1px;
@@ -123,7 +123,7 @@ def home():
     .status {
       margin-top: 14px;
       font-size: 12px;
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: "IBM Plex Mono", monospace;
       color: #555;
       min-height: 18px;
       text-align: center;
@@ -143,7 +143,7 @@ def home():
   </div>
 
   <script>
-    function generar() {
+    async function generar() {
       const valor = document.getElementById("codigo").value.trim();
       const btn = document.getElementById("btn");
       const status = document.getElementById("status");
@@ -157,22 +157,32 @@ def home():
       btn.textContent = "Generando...";
       status.textContent = "";
 
+      // Primero generamos la imagen en el servidor
+      const res = await fetch("/generate?data=" + encodeURIComponent(valor));
+
+      if (!res.ok) {
+        status.textContent = "✗ Error al generar el código.";
+        btn.disabled = false;
+        btn.textContent = "Generar y descargar";
+        return;
+      }
+
+      const urlImg = "/img/barcode_" + valor + ".png";
+
+      // Abrir en nueva pestaña
+      window.open(urlImg, "_blank");
+
       // Descargar
       const link = document.createElement("a");
-      link.href = "/download?data=" + encodeURIComponent(valor);
+      link.href = urlImg;
       link.download = "barcode_" + valor + ".png";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      // Mostrar en nueva pestaña
-      window.open("/barcode?data=" + encodeURIComponent(valor), "_blank");
-
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = "Generar y descargar";
-        status.textContent = "✓ Código generado para: " + valor;
-      }, 1000);
+      btn.disabled = false;
+      btn.textContent = "Generar y descargar";
+      status.textContent = "✓ Código generado para: " + valor;
     }
 
     document.getElementById("codigo").addEventListener("keydown", e => {
@@ -183,37 +193,39 @@ def home():
 </html>
     '''
 
-# ✅ GENERA IMAGEN (para mostrar en navegador)
-@app.route("/barcode")
-def barcode():
+@app.route("/generate")
+def generate():
     data = request.args.get("data")
     if not data:
-        return "Falta ?data=123456", 400
+        return "Falta data", 400
+
     buffer = io.BytesIO()
     codigo = Code128(data, writer=ImageWriter())
     codigo.write(buffer)
     buffer.seek(0)
+
     filename = f"barcode_{data}.png"
     filepath = f"barcodes/{filename}"
+
     with open(filepath, "wb") as f:
         f.write(buffer.getvalue())
+
     wb = openpyxl.load_workbook(excel_path)
     ws = wb.active
     next_row = ws.max_row + 1
     ws[f"A{next_row}"] = next_row - 1
     ws[f"B{next_row}"] = data
     wb.save(excel_path)
-    return send_file(filepath, mimetype="image/png")
 
-# ✅ DESCARGA
-@app.route("/download")
-def download():
-    data = request.args.get("data")
-    if not data:
-        return "Falta data", 400
-    filename = f"barcode_{data}.png"
+    return "OK"
+
+@app.route("/img/<filename>")
+def get_image(filename):
     filepath = f"barcodes/{filename}"
-    return send_file(filepath, as_attachment=True, download_name=filename)
+    if os.path.exists(filepath):
+        return send_file(filepath, mimetype="image/png")
+    else:
+        abort(404)
 
 if __name__ == "__main__":
     app.run()
