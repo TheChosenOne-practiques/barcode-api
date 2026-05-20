@@ -8,13 +8,13 @@ import openpyxl
 
 app = Flask(__name__)
 
-# 📁 Crear carpeta
+# Crear carpeta
 if not os.path.exists("barcodes"):
     os.makedirs("barcodes")
 
 excel_path = "barcodes/registros.xlsx"
 
-# 📊 Crear Excel si no existe
+# Crear Excel si no existe
 if not os.path.exists(excel_path):
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -27,7 +27,6 @@ if not os.path.exists(excel_path):
 # ✅ PANTALLA PRINCIPAL
 @app.route("/")
 def home():
-    # leer excel para mostrar lista
     wb = openpyxl.load_workbook(excel_path)
     ws = wb.active
 
@@ -35,7 +34,7 @@ def home():
     for row in ws.iter_rows(min_row=2, values_only=True):
         rows += f"<tr><td>{row[0]}</td><td>{row[1]}</td></tr>"
 
-    return f'''
+    return f"""
     <h2>Generador de código de barras</h2>
 
     <form action="/barcode">
@@ -58,7 +57,7 @@ def home():
         </tr>
         {rows}
     </table>
-    '''
+    """
 
 
 # ✅ GENERAR CÓDIGO
@@ -76,12 +75,14 @@ def barcode():
         codigo.write(buffer)
         buffer.seek(0)
 
-        # 📁 Guardar imagen
-        filename = f"barcodes/barcode_{data}.png"
-        with open(filename, "wb") as f:
+        filename = f"barcode_{data}.png"
+        filepath = f"barcodes/{filename}"
+
+        # Guardar imagen
+        with open(filepath, "wb") as f:
             f.write(buffer.getvalue())
 
-        # 📊 Guardar en Excel
+        # Guardar en Excel
         wb = openpyxl.load_workbook(excel_path)
         ws = wb.active
 
@@ -91,18 +92,17 @@ def barcode():
 
         wb.save(excel_path)
 
-        # Convertir a base64 para mostrar
         img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-        return f'''
+        return f"""
         <h2>Código generado</h2>
 
-        data:image/png;base64,{img_base64}
+        <img src="data:image/png;base64,{img_base64}"/>
 
         <br><br>
 
-        <a href="/download_image?name=barcode_{data}.png">
-            <button style="padding:10px;">Descargar Imagen</button>
+        <a href="/download_image?name={filename}">
+            <button style="padding:10px;">Descargar imagen</button>
         </a>
 
         <br><br>
@@ -110,7 +110,7 @@ def barcode():
         <a href="/">
             <button style="padding:10px;">Volver</button>
         </a>
-        '''
+        """
 
     except Exception as e:
         return str(e), 500
