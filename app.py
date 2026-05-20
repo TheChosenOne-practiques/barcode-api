@@ -5,6 +5,16 @@ import io
 
 app = Flask(__name__)
 
+@app.route("/")
+def home():
+    return '''
+    <h2>Generador de código de barras</h2>
+    <form action="/barcode">
+        <input type="text" name="data" placeholder="Introduce el número">
+        <button type="submit">Generar</button>
+    </form>
+    '''
+
 @app.route("/barcode")
 def barcode():
     data = request.args.get("data")
