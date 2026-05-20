@@ -40,22 +40,22 @@ def home():
                 return;
             }
 
-            // ✅ Descargar
+            // ✅ Descargar automáticamente
             const link = document.createElement("a");
-            link.href = "/barcode?data=" + valor;
+            link.href = "/download?data=" + valor;
             link.download = "barcode_" + valor + ".png";
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
-            // ✅ Abrir nueva pestaña con imagen
+            // ✅ Abrir imagen en nueva pestaña (URL limpia)
             window.open("/barcode?data=" + valor, "_blank");
         }
     </script>
     '''
 
 
-# ✅ GENERAR IMAGEN
+# ✅ GENERA IMAGEN (para mostrar en navegador)
 @app.route("/barcode")
 def barcode():
     data = request.args.get("data")
@@ -63,39 +63,45 @@ def barcode():
     if not data:
         return "Falta ?data=123456", 400
 
-    try:
-        buffer = io.BytesIO()
+    buffer = io.BytesIO()
+    codigo = Code128(data, writer=ImageWriter())
+    codigo.write(buffer)
+    buffer.seek(0)
 
-        codigo = Code128(data, writer=ImageWriter())
-        codigo.write(buffer)
-        buffer.seek(0)
+    filename = f"barcode_{data}.png"
+    filepath = f"barcodes/{filename}"
 
-        filename = f"barcode_{data}.png"
-        filepath = f"barcodes/{filename}"
+    with open(filepath, "wb") as f:
+        f.write(buffer.getvalue())
 
-        # Guardar imagen
-        with open(filepath, "wb") as f:
-            f.write(buffer.getvalue())
+    # guardar en excel
+    wb = openpyxl.load_workbook(excel_path)
+    ws = wb.active
+    next_row = ws.max_row + 1
+    ws[f"A{next_row}"] = next_row - 1
+    ws[f"B{next_row}"] = data
+    wb.save(excel_path)
 
-        # Guardar en Excel
-        wb = openpyxl.load_workbook(excel_path)
-        ws = wb.active
+    # ✅ mostrar imagen en navegador (NO descarga)
+    return send_file(filepath, mimetype="image/png")
 
-        next_row = ws.max_row + 1
-        ws[f"A{next_row}"] = next_row - 1
-        ws[f"B{next_row}"] = data
 
-        wb.save(excel_path)
+# ✅ DESCARGA
+@app.route("/download")
+def download():
+    data = request.args.get("data")
 
-        # ✅ Mostrar imagen en navegador
-        return send_file(
-            filepath,
-            mimetype="image/png",
-            as_attachment=False  # 🔥 importante
-        )
+    if not data:
+        return "Falta data", 400
 
-    except Exception as e:
-        return str(e), 500
+    filename = f"barcode_{data}.png"
+    filepath = f"barcodes/{filename}"
+
+    return send_file(
+        filepath,
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 if __name__ == "__main__":
