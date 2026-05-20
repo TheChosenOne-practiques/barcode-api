@@ -22,19 +22,40 @@ if not os.path.exists(excel_path):
     wb.save(excel_path)
 
 
-# ✅ FORMULARIO PRINCIPAL
+# ✅ PANTALLA PRINCIPAL
 @app.route("/")
 def home():
     return '''
     <h2>Generador de código de barras</h2>
-    <form action="/barcode">
-        <input type="text" name="data" placeholder="Introduce el número" style="padding:10px;">
-        <button type="submit" style="padding:10px;">Generar</button>
-    </form>
+
+    <input type="text" id="codigo" placeholder="Introduce el número" style="padding:10px;">
+    <button onclick="generar()" style="padding:10px;">Generar</button>
+
+    <script>
+        function generar() {
+            let valor = document.getElementById("codigo").value;
+
+            if (!valor) {
+                alert("Introduce un número");
+                return;
+            }
+
+            // ✅ Descargar
+            const link = document.createElement("a");
+            link.href = "/barcode?data=" + valor;
+            link.download = "barcode_" + valor + ".png";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // ✅ Abrir nueva pestaña con imagen
+            window.open("/barcode?data=" + valor, "_blank");
+        }
+    </script>
     '''
 
 
-# ✅ GENERAR + DESCARGAR + MOSTRAR
+# ✅ GENERAR IMAGEN
 @app.route("/barcode")
 def barcode():
     data = request.args.get("data")
@@ -52,7 +73,7 @@ def barcode():
         filename = f"barcode_{data}.png"
         filepath = f"barcodes/{filename}"
 
-        # Guardar archivo
+        # Guardar imagen
         with open(filepath, "wb") as f:
             f.write(buffer.getvalue())
 
@@ -66,12 +87,11 @@ def barcode():
 
         wb.save(excel_path)
 
-        # ✅ CLAVE: devolver imagen directamente
+        # ✅ Mostrar imagen en navegador
         return send_file(
             filepath,
             mimetype="image/png",
-            as_attachment=True,     # 🔥 descarga automática
-            download_name=filename  # nombre archivo
+            as_attachment=False  # 🔥 importante
         )
 
     except Exception as e:
